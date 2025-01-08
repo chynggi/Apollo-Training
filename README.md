@@ -1,7 +1,8 @@
-<p align="center">
-  <font size=5><b>Apollo Training</b></font><br>
-  <text>Apollo Training：重写部分代码以方便数据集的构建和训练</text>
-</p>
+<div align="center">
+  
+# Apollo Training
+
+</div>
 
 > [!WARNING]
 > 目前还未进行的测试：
@@ -162,13 +163,15 @@ python configs/generate_msst_config.py -c [apollo配置文件路径] -o [msst配
 
 ----
 
-<p align="center">
-  <font size=5><b>Apollo: Band-sequence Modeling for High-Quality Audio Restoration</b></font><br>
+<div align="center">
+
+# Apollo: Band-sequence Modeling for High-Quality Audio Restoration
+
   <strong>Kai Li<sup>1,2</sup>, Yi Luo<sup>2</sup></strong><br>
     <strong><sup>1</sup>Tsinghua University, Beijing, China</strong><br>
     <strong><sup>2</sup>Tencent AI Lab, Shenzhen, China</strong><br>
   <a href="https://arxiv.org/abs/2409.08514">ArXiv</a> | <a href="https://cslikai.cn/Apollo/">Demo</a>
-</p>
+</div>
 
 ## 📖 Abstract
 
