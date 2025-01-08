@@ -58,11 +58,11 @@ class BaseModel(nn.Module, PyTorchModelHubMixin, repo_url="https://github.com/Ju
         return model
 
     @staticmethod
-    def from_pretrain(pretrained_model_conf_or_path, *args, **kwargs):
+    def from_pretrain(model_path, *args, **kwargs):
         from . import get
 
         conf = torch.load(
-            pretrained_model_conf_or_path, map_location="cpu"
+            model_path, map_location="cpu"
         )  # Attempt to find the model and instantiate it.
 
         model_class = get(conf["model_name"])

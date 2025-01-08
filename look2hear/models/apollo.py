@@ -290,7 +290,7 @@ class Apollo(BaseModel):
 
         est_spec = []
         for i in range(self.nband):
-            this_RI = self.output[i](feature[:,i]).view(B*nch, 2, self.band_width[i], -1)
+            this_RI = self.output[i](feature[:,i]).view(B*nch, 2, self.band_width[i], -1).float()
             est_spec.append(torch.complex(this_RI[:,0], this_RI[:,1]))
         est_spec = torch.cat(est_spec, 1)
         output = torch.istft(est_spec, n_fft=self.win, hop_length=self.stride, 

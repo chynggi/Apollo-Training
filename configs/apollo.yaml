@@ -1,33 +1,33 @@
 exp: 
-  dir: ./Exps
-  name: Apollo
-
-# seed: 614020
+  dir: ./exps # directory to save the experiment
+  name: apollo # name of the experiment
 
 datas:
-  _target_: look2hear.datas.MusdbMoisesdbDataModule
-  train_dir: ./hdf5_datas
-  eval_dir: ./eval
-  codec_type: mp3
-  codec_options:
-    bitrate: random
-    compression: random
-    complexity: random
-    vbr: random
-  sr: 44100
-  segments: 3
-  num_stems: 8
-  snr_range: [-10, 10]
-  num_samples: 40000
-  batch_size: 1
-  num_workers: 8
+  _target_: look2hear.datas.DataModule
+  original_dir: train/original # dataset where the original audio files are stored
+  codec_dir: train/codec # dataset where the codec audio files are stored
+  codec_format: mp3 # the format of the codec audio files
+  valid_dir: valid # dataset where the validation audio files are stored
+  valid_original: original.wav # the original audio file name for validation
+  valid_codec: codec.mp3 # the codec audio file name for validation
+  codec:
+    enable: false # enable auto generation of codec audio files, if enabled, the codec audio files will be generated. The codec_dir, codec_format will be ignored
+    options:
+      bitrate: random # random or fixed, if fixed, the bitrate will be set to the value of bitrate (int), if random, the bitrate will be randomly selected from [24000, 32000, 48000, 64000, 96000, 128000]
+      compression: random # random or fixed, if fixed, the compression will be set to the value of compression (int), if random, the compression will be caculated by the bitrate
+  sr: 44100 # sample rate
+  segments: 1 # automatically cropped audio in seconds. The value should be less than the minimum audio duration
+  num_steps: 10 # number of samples to be used for training in one epoch.
+  batch_size: 1 # batch size
+  num_workers: 0 # number of workers for data loading
+  pin_memory: true # pin memory for data loading
 
 model:
   _target_: look2hear.models.apollo.Apollo
-  sr: 44100
+  sr: 44100 # sample rate
   win: 20 # ms
-  feature_dim: 256
-  layer: 6
+  feature_dim: 256 # feature dimension
+  layer: 6 # number of layers
 
 discriminator:
   _target_: look2hear.discriminators.frequencydis.MultiFrequencyDiscriminator
@@ -96,11 +96,11 @@ logger:
 
 trainer:
   _target_: pytorch_lightning.Trainer
-  devices: [0,1,2,3,4,5,6,7]
-  max_epochs: 500
+  devices: [0]
+  max_epochs: 1000
   sync_batchnorm: true
   default_root_dir: ${exp.dir}/${exp.name}/
   accelerator: cuda
   limit_train_batches: 1.0
   fast_dev_run: false
-  
+  precision: bf16 # [16, bf16, 32, 64]

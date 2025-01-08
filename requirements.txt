@@ -1,0 +1,16 @@
+# It is recommended to install torch manually from https://pytorch.org/get-started/locally/
+# If you meet error: 'use_libuv was requested but PyTorch was build without libuv support', please reduce your PyTorch version.
+
+# torch
+pytorch-lightning==2.2.1
+hydra-core==1.3.2
+torch_optimizer==0.3.0
+torch_complex==0.4.4
+librosa
+numpy
+soundfile
+tqdm
+omegaconf
+rich
+huggingface_hub
+wandb

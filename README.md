@@ -1,22 +1,174 @@
 <p align="center">
-  <img src="asserts/apollo-logo.png" alt="Logo" width="150"/>
+  <font size=5><b>Apollo Training</b></font><br>
+  <text>Apollo Training：重写部分代码以方便数据集的构建和训练</text>
 </p>
 
+> [!WARNING]
+> 目前还未进行的测试：
+> 1. 训练代码仅在windows系统，单一GPU上测试过，其他环境还未测试！
+> 2. 继续训练模型的功能，能用，但还未测试续练出来的模型效果！
+
+## 1. 环境配置
+
+经测试，python=3.10可以运行，其他版本未测试。此外，建议手动安装PyTorch。
+
+```shell
+conda create -n apollo python=3.10 -y
+conda activate apollo
+pip install -r requirements.txt
+```
+
+如果在后续训练过程中遇到报错：`RuntimeError: use_libuv was requested but PyTorch was build without libuv support`，有以下两种解决方法：
+1. 降低pytorch的版本，经过测试，torch==2.0.1可以运行。
+2. 在 `train.py` 的 `if __name__ == "__main__":` 中，将 `init_method="env://"` 修改为 `init_method="env://?use_libuv=False"`。
+
+## 2. 数据集构建
+
+### 2.1 手动构建压缩后的音频
+
+按照以下结构构建训练集文件夹。codec代表的是压缩后的音频，original代表的是原始音频。你需要确保original文件夹中的音频文件和codec文件夹中的音频文件，除后缀名以外的其余名称是一一对应的。并且需要确保配置文件夹中 `datas.codec.enable` 设置成 `False` 以禁用自动构建压缩音频。
+
+```
+train
+  ├─codec
+  │    my_song.wav
+  │    test_song.wav
+  │    vocals.wav
+  │    114514.wav
+  │    ...
+  └─original
+       my_song.wav
+       test_song.wav
+       vocals.wav
+       114514.wav
+       ...
+```
+
+### 2.2 自动构建压缩后的音频
+
+按照以下结构构建训练集文件夹，无需codec文件夹。并且需要确保配置文件夹中 `datas.codec.enable` 设置成 `True` 以启用自动构建压缩音频。
+
+```
+train
+  └─original
+       my_song.wav
+       test_song.wav
+       vocals.wav
+       114514.wav
+       ...
+```
+
+### 2.3 验证集构建
+
+无论上面选择何种方式，都需要按照以下结构构建验证集文件夹。并且需要保证同一文件夹中的两段音频形状（`audio.shape`）保持一致。文件夹名字可以自定义，音频文件名字需要一致。
+
+```
+valid
+  ├─folder_1
+  │    codec.wav
+  │    original.wav
+  │    ...
+  └─folder_2
+       codec.wav
+       original.wav
+       ...
+```
+
+### 2.4 修改配置文件
+
+配置文件位于`configs/apollo.yaml`，下面仅介绍一些关键参数
+
+```yaml
+exp: 
+  dir: ./exps # 训练结果存放路径
+  name: apollo # 实验名称
+  # 上面两行加起来，即会在./exps/apollo中存放此次训练的结果和日志
+
+datas:
+  _target_: look2hear.datas.DataModule
+  original_dir: train/original # 训练集，存放原始音频的文件夹
+  codec_dir: train/codec # 训练集，存放压缩音频的文件夹
+  codec_format: mp3 # 训练集，存放压缩音频的文件夹中的音频格式
+  valid_dir: valid # 验证集路径
+  valid_original: original.wav # 验证集中原始音频的文件名
+  valid_codec: codec.mp3 # 验证集中压缩音频的文件名
+  codec:
+    enable: false # 自动生成压缩音频，如果启用，将自动生成压缩音频。上面的codec_dir和codec_format将被忽略
+    options: # 压缩参数设置
+      bitrate: random # 随机或固定，如果固定，则采用设定的值（整型），如果随机，则将从[24000、32000、48000、64000、96000、128000]中随机选择比特率
+      compression: random # 随机或固定，如果固定，则采用设定的值（整型），如果随机，将按比特率计算
+  sr: 44100 # 采样率
+  segments: 3 # 训练时随机裁剪的音频长度（单位：秒）。该值应小于训练集中最短音频时长
+  num_steps: 1000 # 一个epoch中的迭代次数，也可理解为一个epoch中随机抽取的音频数量
+  batch_size: 1
+  num_workers: 0
+  pin_memory: true
+
+model:
+  _target_: look2hear.models.apollo.Apollo
+  sr: 44100 # sample rate
+  win: 20 # ms
+  feature_dim: 256 # feature dimension
+  layer: 6 # number of layers
+
+trainer:
+  _target_: pytorch_lightning.Trainer
+  devices: [0] # GPU ID
+  max_epochs: 1000 # 最大训练轮数
+  sync_batchnorm: true
+  default_root_dir: ${exp.dir}/${exp.name}/
+  accelerator: cuda
+  limit_train_batches: 1.0
+  fast_dev_run: false
+  precision: bf16 # 可选项：[16, bf16, 32, 64]，建议采用bf16
+```
+
+## 3. 训练
+
+> [!WARNING]
+> 1. 训练代码仅在windows系统，单一GPU上测试过，其他环境还未测试！
+> 2. 继续训练模型的功能，能用，但还未测试续练出来的模型效果！
+
+使用下面的代码开始训练：
+
+```bash
+python train.py -c [配置文件路径]
+# 例如：python train.py -c ./configs/apollo.yaml
+```
+
+如果需要继续训练，添加 `-m [继续训练的模型路径]`。但还未经过充分测试。<br>
+关于更详细的多卡分布式训练的环境变量设置，前往 `train.py` 的 `if __name__ == "__main__":`。
+
+## 4. 推理/验证
+
+> [!NOTE]
+> 更推荐使用[ZFTurbo](https://github.com/ZFTurbo)的[Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training)进行模型推理和验证。
+
+apollo官方也提供了简单的推理脚本 `inference.py`。使用方法:
+
+```bash
+python inference.py -m [模型路径] -i [输入音频路径] -o [输出音频路径]
+# 例如：python inference.py -m ./exps/apollo/epoch=0001-step=0000000.ckpt -i ./test.wav -o ./test_out.wav
+```
+
+## 5. 将apollo配置文件转化为[msst]((https://github.com/ZFTurbo/Music-Source-Separation-Training))配置文件
+
+使用 `configs/generate_msst_config.py`
+
+```bash
+python configs/generate_msst_config.py -c [apollo配置文件路径] -o [msst配置文件路径]
+# 例如：python configs/generate_msst_config.py -c ./configs/apollo.yaml -o ./configs/msst.yaml
+```
+
+----
+
 <p align="center">
+  <font size=5><b>Apollo: Band-sequence Modeling for High-Quality Audio Restoration</b></font><br>
   <strong>Kai Li<sup>1,2</sup>, Yi Luo<sup>2</sup></strong><br>
     <strong><sup>1</sup>Tsinghua University, Beijing, China</strong><br>
     <strong><sup>2</sup>Tencent AI Lab, Shenzhen, China</strong><br>
   <a href="https://arxiv.org/abs/2409.08514">ArXiv</a> | <a href="https://cslikai.cn/Apollo/">Demo</a>
-
-<p align="center">
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=JusperLee.Apollo" alt="访客统计" />
-  <img src="https://img.shields.io/github/stars/JusperLee/Apollo?style=social" alt="GitHub stars" />
-  <img alt="Static Badge" src="https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-lightgrey">
 </p>
-
-<p align="center">
-
-# Apollo: Band-sequence Modeling for High-Quality Audio Restoration
 
 ## 📖 Abstract
 
