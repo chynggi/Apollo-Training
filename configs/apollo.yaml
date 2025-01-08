@@ -6,18 +6,18 @@ datas:
   _target_: look2hear.datas.DataModule
   original_dir: train/original # dataset where the original audio files are stored
   codec_dir: train/codec # dataset where the codec audio files are stored
-  codec_format: mp3 # the format of the codec audio files
+  codec_format: wav # the format of the codec audio files
   valid_dir: valid # dataset where the validation audio files are stored
   valid_original: original.wav # the original audio file name for validation
-  valid_codec: codec.mp3 # the codec audio file name for validation
+  valid_codec: codec.wav # the codec audio file name for validation
   codec:
     enable: false # enable auto generation of codec audio files, if enabled, the codec audio files will be generated. The codec_dir, codec_format will be ignored
     options:
       bitrate: random # random or fixed, if fixed, the bitrate will be set to the value of bitrate (int), if random, the bitrate will be randomly selected from [24000, 32000, 48000, 64000, 96000, 128000]
       compression: random # random or fixed, if fixed, the compression will be set to the value of compression (int), if random, the compression will be caculated by the bitrate
   sr: 44100 # sample rate
-  segments: 1 # automatically cropped audio in seconds. The value should be less than the minimum audio duration
-  num_steps: 10 # number of samples to be used for training in one epoch.
+  segments: 3 # automatically cropped audio in seconds. The value should be less than the minimum audio duration
+  num_steps: 1000 # number of samples to be used for training in one epoch.
   batch_size: 1 # batch size
   num_workers: 0 # number of workers for data loading
   pin_memory: true # pin memory for data loading
@@ -91,7 +91,7 @@ logger:
   _target_: pytorch_lightning.loggers.WandbLogger
   name: ${exp.name}
   save_dir: ${exp.dir}/${exp.name}/logs
-  offline: false
+  offline: true # if true, the logs will not be uploaded to wandb
   project: Audio-Restoration
 
 trainer:

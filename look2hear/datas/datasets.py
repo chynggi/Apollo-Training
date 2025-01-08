@@ -121,6 +121,14 @@ class ValidDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         ori_wav, _ = librosa.load(os.path.join(self.data_path[idx], self.valid_original), sr=self.sr, mono=False)
         codec_wav, _ = librosa.load(os.path.join(self.data_path[idx], self.valid_codec), sr=self.sr, mono=False)
+        minlen = min(ori_wav.shape[-1], codec_wav.shape[-1])
+        ori_wav, codec_wav = ori_wav[..., :minlen], codec_wav[..., :minlen]
+
+        if not isinstance(ori_wav, torch.Tensor):
+            ori_wav = torch.tensor(ori_wav)
+        if not isinstance(codec_wav, torch.Tensor):
+            codec_wav = torch.tensor(codec_wav)
+
         return ori_wav, codec_wav
 
 

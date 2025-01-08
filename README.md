@@ -59,6 +59,8 @@ train
        ...
 ```
 
+如果在自动构建的过程中遇到`RuntimeError: torchaudio.functional.functional.apply_codec requires sox extension, but TorchAudio is not compiled with it. Please build TorchAudio with libsox support.`，则表明自动构建不可用。请自行解决或使用上面的手动构建压缩音频的方法。
+
 ### 2.3 验证集构建
 
 无论上面选择何种方式，都需要按照以下结构构建验证集文件夹。并且需要保证同一文件夹中的两段音频形状（`audio.shape`）保持一致。文件夹名字可以自定义，音频文件名字需要一致。
