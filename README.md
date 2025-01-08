@@ -154,7 +154,7 @@ python inference.py -m [模型路径] -i [输入音频路径] -o [输出音频�
 # 例如：python inference.py -m ./exps/apollo/epoch=0001-step=0000000.ckpt -i ./test.wav -o ./test_out.wav
 ```
 
-## 5. 将apollo配置文件转化为[msst]((https://github.com/ZFTurbo/Music-Source-Separation-Training))配置文件
+## 5. 将apollo配置文件转化为[msst](https://github.com/ZFTurbo/Music-Source-Separation-Training)配置文件
 
 使用 `configs/generate_msst_config.py`
 
