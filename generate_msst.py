@@ -1,9 +1,22 @@
 import os
 import argparse
 import torch
+import re
 from omegaconf import OmegaConf
 
 def generate(args):
+    file_name = os.path.basename(args.model)
+    pattern = r"epoch=(\d+)-val_loss=([\d\.]+)\.ckpt"
+    match = re.match(pattern, file_name)
+    if match:
+        epoch = match.group(1)
+        val_loss = match.group(2)
+        model_file_name = f"model_apollo_ep_{epoch}_val_loss_{val_loss}.ckpt"
+        config_file_name = f"config_apollo_ep_{epoch}_val_loss_{val_loss}.yaml"
+    else:
+        model_file_name = "model_apollo.ckpt"
+        config_file_name = "config_apollo.yaml"
+
     cfg = OmegaConf.load(args.config)
     msst_cfg = {
         'audio': {'chunk_size': 441000, 'min_mean_abs': 0.0, 'num_channels': 2, 'sample_rate': cfg.model.sr},
@@ -21,7 +34,7 @@ def generate(args):
             'reduce_factor': 0.95, 'target_instrument': 'restored', 'use_amp': True
         }
     }
-    with open(os.path.join(args.output, "msst_config.yaml"), 'w') as f:
+    with open(os.path.join(args.output, config_file_name), 'w') as f:
         OmegaConf.save(msst_cfg, f)
 
     checkpoint = torch.load(args.model, map_location='cpu', weights_only=False)
@@ -32,7 +45,7 @@ def generate(args):
             state_dict[new_k] = state_dict[k]
         del state_dict[k]
     checkpoint['state_dict'] = state_dict
-    torch.save(checkpoint, os.path.join(args.output, "msst_model.ckpt"))
+    torch.save(checkpoint, os.path.join(args.output, model_file_name))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
