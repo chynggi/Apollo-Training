@@ -156,13 +156,13 @@ python inference.py -m [模型路径] -i [输入音频路径] -o [输出音频�
 # 例如：python inference.py -m ./exps/apollo/epoch=0001-step=0000000.ckpt -i ./test.wav -o ./test_out.wav
 ```
 
-## 5. 将apollo配置文件转化为[msst](https://github.com/ZFTurbo/Music-Source-Separation-Training)配置文件
+## 5. 导出[msst](https://github.com/ZFTurbo/Music-Source-Separation-Training)模型和配置文件
 
-使用 `configs/generate_msst_config.py`
+由此仓库训练出来的apollo模型无法直接在msst中使用，需要进行一些转换。使用 `generate_msst.py`。该脚本可以删除模型中的无用参数，并且转换成[msst](https://github.com/ZFTurbo/Music-Source-Separation-Training)支持的模型。运行下述命令后，会在输出文件夹输出一个`msst_config.yaml`配置文件和一个`msst_model.ckpt`模型文件。
 
 ```bash
-python configs/generate_msst_config.py -c [apollo配置文件路径] -o [msst配置文件路径]
-# 例如：python configs/generate_msst_config.py -c ./configs/apollo.yaml -o ./configs/msst.yaml
+python generate_msst.py -c [apollo配置文件路径] -m [训练出来的apollo模型路径] -o [输出文件夹路径，默认为output]
+# 例如：python generate_msst.py -c ./configs/apollo.yaml -m ./exps/apollo/epoch=0001-step=0000000.ckpt
 ```
 
 ----
