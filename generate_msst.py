@@ -6,7 +6,7 @@ from omegaconf import OmegaConf
 
 def generate(args):
     file_name = os.path.basename(args.model)
-    pattern = r"epoch=(\d+)-val_loss=([\d\.]+)\.ckpt"
+    pattern = r"epoch=(\d+)-val_loss=(-?[\d\.]+)\.ckpt"
     match = re.match(pattern, file_name)
     if match:
         epoch = match.group(1)
