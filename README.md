@@ -128,19 +128,20 @@ trainer:
 
 ## 3. 训练
 
-> [!WARNING]
-> 目前已知问题：
-> 1. 还未在多卡环境跑过此训练代码！目前仅在Linux和Windows下使用此代码单卡训练过。
-> 2. 目前已知问题：`batchsize>1`会出现tensor不匹配的情况。还没研究为什么会这样。因此建议设置`batchsize=1`，如果要压榨显存的话，把切片长度`segments`调大一点，或者调大模型网络，就可以了。
-
-使用下面的代码开始训练。若需要wandb在线可视化，需设置环境变量`WANDB_API_KEY`为你的api key。
+使用下面的代码开始训练。若需要wandb在线可视化，需设置环境变量`WANDB_API_KEY`为你的api key。配置文件中默认启用了early stopping机制，并且设置了patience。这意味着如果验证集的损失在连续patience个epoch内没有改进，训练就会提前结束。如果不希望提前结束而是训练到max epoch，你可以删除配置文件中的early_stopping相关的配置。
 
 ```bash
 python train.py -c [配置文件路径]
 # 例如：python train.py -c ./configs/apollo.yaml
 ```
 
-如果需要继续训练，添加 `-m [继续训练的模型路径]`。但还未经过充分测试。<br>
+如果需要继续训练，添加 `-m [继续训练的模型路径]`。
+
+```bash
+python train.py -c [配置文件路径] -m [继续训练的模型路径]
+# 例如：python train.py -c ./configs/apollo.yaml -m ./exps/apollo/epoch=0001-step=0000000.ckpt
+```
+
 关于更详细的多卡分布式训练的环境变量设置，前往 `train.py` 的 `if __name__ == "__main__":`。
 
 ## 4. 推理/验证
