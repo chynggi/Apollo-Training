@@ -62,7 +62,7 @@ class BaseModel(nn.Module, PyTorchModelHubMixin, repo_url="https://github.com/Ju
         from . import get
 
         conf = torch.load(
-            model_path, map_location="cpu"
+            model_path, map_location="cpu", weights_only=False
         )  # Attempt to find the model and instantiate it.
 
         model_class = get(conf["model_name"])

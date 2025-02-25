@@ -5,14 +5,23 @@ import pytorch_lightning as pl
 import torch
 import warnings
 import hydra
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning import Callback, LightningDataModule, LightningModule, Trainer
-from omegaconf import DictConfig
+from pytorch_lightning import LightningDataModule, LightningModule, Trainer
+from pytorch_lightning.loggers import WandbLogger
 from look2hear.utils import print_only
-from typing import Any, Dict, List, Tuple
 
-def train(cfg: DictConfig, model_path: str = None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+warnings.filterwarnings("ignore")
+torch.set_float32_matmul_precision("high")
+
+
+def train(cfg: DictConfig, model_path: str) -> None:
+    # seed everything
+    if cfg.get("seed"):
+        pl.seed_everything(cfg.seed, workers=True)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
     # instantiate datamodule
     print_only(f"Instantiating datamodule <{cfg.datas._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.datas, expdir=os.path.join(cfg.exp.dir, cfg.exp.name))
@@ -20,18 +29,6 @@ def train(cfg: DictConfig, model_path: str = None) -> Tuple[Dict[str, Any], Dict
     # instantiate model
     print_only(f"Instantiating AudioNet <{cfg.model._target_}>")
     model: torch.nn.Module = hydra.utils.instantiate(cfg.model)
-
-    # Load the model state if continue training
-    if model_path:
-        print_only(f"Loading model state dict from <{model_path}>")
-        checkpoint = torch.load(model_path, weights_only=False)
-        state_dict = checkpoint['state_dict']
-        for k in list(state_dict.keys()):
-            if "audio_model" in k:
-                new_k = k.replace("audio_model.", "")
-                state_dict[new_k] = state_dict[k]
-            del state_dict[k]
-        model.load_state_dict(state_dict)
 
     print_only(f"Instantiating Discriminator <{cfg.discriminator._target_}>")
     discriminator: torch.nn.Module = hydra.utils.instantiate(cfg.discriminator)
@@ -50,32 +47,13 @@ def train(cfg: DictConfig, model_path: str = None) -> Tuple[Dict[str, Any], Dict
     print_only(f"Instantiating loss <{cfg.loss_g._target_}>")
     loss_g: torch.nn.Module = hydra.utils.instantiate(cfg.loss_g)
     loss_d: torch.nn.Module = hydra.utils.instantiate(cfg.loss_d)
-    losses = {"g": loss_g,"d": loss_d}
 
     # instantiate metrics
     print_only(f"Instantiating metrics <{cfg.metrics._target_}>")
     metrics: torch.nn.Module = hydra.utils.instantiate(cfg.metrics)
 
-    # instantiate system
-    print_only(f"Instantiating system <{cfg.system._target_}>")
-    system: LightningModule = hydra.utils.instantiate(
-        cfg.system,
-        model=model,
-        discriminator=discriminator,
-        loss_func=losses,
-        metrics=metrics,
-        optimizer=[optimizer_g, optimizer_d],
-        scheduler=[scheduler_g, scheduler_d]
-    )
-
-    # Load the model state if continue training
-    if model_path:
-        print_only(f"Loading system state dict from <{model_path}>")
-        checkpoint = torch.load(model_path, weights_only=False)
-        system.load_state_dict(checkpoint['state_dict'])
-
     # instantiate callbacks
-    callbacks: List[Callback] = []
+    callbacks = []
     if cfg.get("early_stopping"):
         print_only(f"Instantiating early_stopping <{cfg.early_stopping._target_}>")
         callbacks.append(hydra.utils.instantiate(cfg.early_stopping))
@@ -87,7 +65,19 @@ def train(cfg: DictConfig, model_path: str = None) -> Tuple[Dict[str, Any], Dict
     # instantiate logger
     print_only(f"Instantiating logger <{cfg.logger._target_}>")
     os.makedirs(os.path.join(cfg.exp.dir, cfg.exp.name, "logs"), exist_ok=True)
-    logger = hydra.utils.instantiate(cfg.logger)
+    logger: WandbLogger = hydra.utils.instantiate(cfg.logger)
+
+    # instantiate system
+    print_only(f"Instantiating system <{cfg.system._target_}>")
+    system: LightningModule = hydra.utils.instantiate(
+        config=cfg.system,
+        model=model,
+        discriminator=discriminator,
+        loss_func={"g": loss_g,"d": loss_d},
+        metrics=metrics,
+        optimizer=[optimizer_g, optimizer_d],
+        scheduler=[scheduler_g, scheduler_d],
+    )
 
     # instantiate trainer
     print_only(f"Instantiating trainer <{cfg.trainer._target_}>")
@@ -95,21 +85,24 @@ def train(cfg: DictConfig, model_path: str = None) -> Tuple[Dict[str, Any], Dict
         config=cfg.trainer,
         callbacks=callbacks,
         logger=logger,
-        strategy=DDPStrategy(find_unused_parameters=True),
+        strategy=DDPStrategy(find_unused_parameters=True, process_group_backend='gloo' if os.name == "nt" else 'nccl'),
     )
 
-    trainer.fit(system, datamodule=datamodule)
+    # train and save the best model
+    trainer.fit(system, datamodule=datamodule, ckpt_path=model_path if model_path else None)
     print_only("Training finished!")
     best_k = {k: v.item() for k, v in checkpoint.best_k_models.items()}
     with open(os.path.join(cfg.exp.dir, cfg.exp.name, "best_k_models.json"), "w") as f:
         json.dump(best_k, f, indent=0)
 
-    state_dict = torch.load(checkpoint.best_model_path)
+    state_dict = torch.load(checkpoint.best_model_path, weights_only=False)
     system.load_state_dict(state_dict=state_dict["state_dict"])
     system.cpu()
 
     to_save = system.audio_model.serialize()
-    torch.save(to_save, os.path.join(cfg.exp.dir, cfg.exp.name, "best_model.pth"))
+    if trainer.is_global_zero:
+        torch.save(to_save, os.path.join(cfg.exp.dir, cfg.exp.name, "best_model.pth"))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -117,22 +110,15 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--model", type=str, default=None, help="Path to the checkpoint model for resuming training")
     args = parser.parse_args()
 
-    warnings.filterwarnings("ignore")
-    torch.set_float32_matmul_precision("high")
-
     cfg = OmegaConf.load(args.config)
     os.makedirs(os.path.join(cfg.exp.dir, cfg.exp.name), exist_ok=True)
     OmegaConf.save(cfg, os.path.join(cfg.exp.dir, cfg.exp.name, "config.yaml"))
 
-    if cfg.get("seed"):
-        pl.seed_everything(cfg.seed, workers=True)
-
-    devices = cfg.trainer.get("devices", [0])
-
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '8001'
-    os.environ["RANK"] = '0'
-    os.environ["WORLD_SIZE"] = str(len(devices))
-    torch.distributed.init_process_group(backend='gloo' if os.name == "nt" else 'nccl', init_method="env://")
+    if "MASTER_ADDR" not in os.environ:
+        os.environ['MASTER_ADDR'] = 'localhost'
+    if "MASTER_PORT" not in os.environ:
+        os.environ['MASTER_PORT'] = '8001'
+    if "USE_LIBUV" not in os.environ:
+        os.environ["USE_LIBUV"] = "0"
 
     train(cfg, model_path=args.model)
