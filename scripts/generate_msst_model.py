@@ -1,6 +1,7 @@
 import os
 import argparse
 import torch
+import pytorch_lightning as pl
 import re
 from omegaconf import OmegaConf
 
@@ -37,15 +38,13 @@ def generate(args):
     with open(os.path.join(args.output, config_file_name), 'w') as f:
         OmegaConf.save(msst_cfg, f)
 
-    checkpoint = torch.load(args.model, map_location='cpu', weights_only=False)
-    state_dict = checkpoint['state_dict']
-    for k in list(state_dict.keys()):
-        if "audio_model" in k:
-            new_k = k.replace("audio_model.", "")
-            state_dict[new_k] = state_dict[k]
-        del state_dict[k]
-    checkpoint['state_dict'] = state_dict
-    torch.save(checkpoint, os.path.join(args.output, model_file_name))
+    old_checkpoint = torch.load(args.model, map_location='cpu', weights_only=False)
+    new_checkpoint = dict()
+    new_checkpoint['model_name'] = "Apollo"
+    new_checkpoint['model_args'] = {'software_versions': {'torch_version': torch.__version__, 'pytorch_lightning_version': pl.__version__}}
+    new_checkpoint['infos'] = {'sr': cfg.model.sr, 'win': cfg.model.win, 'feature_dim': cfg.model.feature_dim, 'layer': cfg.model.layer}
+    new_checkpoint['state_dict'] = {k.replace("audio_model.", ""): v for k, v in old_checkpoint['state_dict'].items() if "audio_model" in k}
+    torch.save(new_checkpoint, os.path.join(args.output, model_file_name))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
