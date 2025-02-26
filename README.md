@@ -4,11 +4,6 @@
 
 </div>
 
-> [!WARNING]
-> 目前已知问题：
-> 1. 还未在多卡环境跑过此训练代码！目前仅在Linux和Windows下使用此代码单卡训练过。
-> 2. 目前已知问题：`batchsize>1`会出现tensor不匹配的情况。还没研究为什么会这样。因此建议设置`batchsize=1`，如果要压榨显存的话，把切片长度`segments`调大一点，或者调大模型网络，就可以了。
-
 ## 1. 环境配置
 
 经测试，python=3.10可以运行，其他版本未测试。此外，建议手动安装PyTorch。
@@ -18,10 +13,6 @@ conda create -n apollo python=3.10 -y
 conda activate apollo
 pip install -r requirements.txt
 ```
-
-如果在后续训练过程中遇到报错：`RuntimeError: use_libuv was requested but PyTorch was build without libuv support`，有以下两种解决方法：
-1. 降低pytorch的版本，经过测试，torch==2.0.1可以运行。
-2. 在 `train.py` 的 `if __name__ == "__main__":` 中，将 `init_method="env://"` 修改为 `init_method="env://?use_libuv=False"`。
 
 ## 2. 数据集构建
 
@@ -161,8 +152,8 @@ python inference.py -m [模型路径] -i [输入音频路径] -o [输出音频�
 由此仓库训练出来的apollo模型无法直接在msst中使用，需要进行一些转换。使用 `generate_msst.py`。该脚本可以删除模型中的无用参数，并且转换成[msst](https://github.com/ZFTurbo/Music-Source-Separation-Training)支持的模型。运行下述命令后，会在输出文件夹输出配置文件和模型文件。
 
 ```bash
-python generate_msst.py -c [apollo配置文件路径] -m [训练出来的apollo模型路径] -o [输出文件夹路径，默认为output]
-# 例如：python generate_msst.py -c ./configs/apollo.yaml -m ./exps/apollo/epoch=0001-step=0000000.ckpt
+python scripts/generate_msst_model.py -c [apollo配置文件路径] -m [训练出来的apollo模型路径] -o [输出文件夹路径，默认为output]
+# 例如：python scripts/generate_msst_model.py -c ./configs/apollo.yaml -m ./exps/apollo/epoch=0001-step=0000000.ckpt
 ```
 
 ----
