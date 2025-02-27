@@ -5,7 +5,9 @@
 # LastEditTime: 2022-07-29 06:23:03
 ###
 from .datasets import DataModule
+from .preprocess import get_filelist
 
 __all__ = [
     "DataModule"
+    "get_filelist"
 ]

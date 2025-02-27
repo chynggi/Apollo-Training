@@ -4,28 +4,36 @@ exp:
 
 datas:
   _target_: look2hear.datas.DataModule
-  original_dir: train/original # dataset where the original audio files are stored
-  codec_dir: train/codec # dataset where the codec audio files are stored
-  codec_format: wav # the format of the codec audio files
-  valid_dir: valid # dataset where the validation audio files are stored
-  valid_original: original.wav # the original audio file name for validation
-  valid_codec: codec.wav # the codec audio file name for validation
-  codec:
-    enable: false # enable auto generation of codec audio files, if enabled, the codec audio files will be generated. The codec_dir, codec_format will be ignored
-    options:
-      bitrate: random # random or fixed, if fixed, the bitrate will be set to the value of bitrate (int), if random, the bitrate will be randomly selected from [24000, 32000, 48000, 64000, 96000, 128000]
-      compression: random # random or fixed, if fixed, the compression will be set to the value of compression (int), if random, the compression will be caculated by the bitrate
+  dataset_type: 1 # see README for more details
   sr: 44100 # sample rate
-  segments: 3 # automatically cropped audio in seconds. The value should be less than the minimum audio duration
+  segments: 4 # cropped audio in seconds. chunksize = sr * segments
   num_steps: 1000 # number of samples to be used for training in one epoch.
   batch_size: 1 # batch size
   num_workers: 0 # number of workers for data loading
   pin_memory: true # pin memory for data loading
 
+  stems:
+    original: original # key for the original audio files
+    codec: codec # key for the codec audio files
+
+  train:
+    dir: # dataset where the training audio files are stored 
+    - train_dir_1
+    - train_dir_2
+    original_format: wav # the format of the original audio files
+    codec_format: mp3 # the format of the codec audio files
+
+  valid:
+    dir: # dataset where the validation audio files are stored
+    - valid_dir_1
+    - valid_dir_2
+    original_format: wav # the format of the original audio files
+    codec_format: mp3 # the format of the codec audio files
+
 model:
   _target_: look2hear.models.apollo.Apollo
   sr: 44100 # sample rate
-  win: 20 # ms
+  win: 20 # window size in milliseconds
   feature_dim: 256 # feature dimension
   layer: 6 # number of layers
 
@@ -70,28 +78,29 @@ metrics:
 system:
   _target_: look2hear.system.audio_litmodule.AudioLightningModule
 
+# comment out the early_topping content below, if you do not wish to have early_topping
 early_stopping:
   _target_: pytorch_lightning.callbacks.EarlyStopping
-  monitor: val_loss
-  patience: 20
+  monitor: val_loss # metric to monitor
+  patience: 20 # number of epochs with no improvement after which training will be stopped
   mode: min
   verbose: true
 
 checkpoint:
   _target_: pytorch_lightning.callbacks.ModelCheckpoint
   dirpath: ${exp.dir}/${exp.name}/checkpoints
-  monitor: val_loss
+  monitor: val_loss # metric to monitor
   mode: min
   verbose: true
-  save_top_k: 5
-  save_last: true
+  save_top_k: 10 # number of best models to save
+  save_last: true # save the last checkpoint
   filename: '{epoch}-{val_loss:.4f}'
 
 logger:
   _target_: pytorch_lightning.loggers.WandbLogger
   name: ${exp.name}
   save_dir: ${exp.dir}/${exp.name}/logs
-  offline: true # if true, the logs will not be uploaded to wandb
+  offline: false # if true, the logs will not be uploaded to wandb
   project: Audio-Restoration
 
 trainer:
@@ -104,3 +113,4 @@ trainer:
   limit_train_batches: 1.0
   fast_dev_run: false
   precision: bf16 # [16, bf16, 32, 64]
+  enable_model_summary: true
