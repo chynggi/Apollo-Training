@@ -106,7 +106,7 @@ def train(cfg: DictConfig, model_path: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", type=str, default="configs/apollo.yaml",)
+    parser.add_argument("-c", "--config", type=str, default="configs/apollo.yaml", help="Path to the config file")
     parser.add_argument("-m", "--model", type=str, default=None, help="Path to the checkpoint model for resuming training")
     args = parser.parse_args()
 

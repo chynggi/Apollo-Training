@@ -40,17 +40,31 @@ def generate(args):
 
     old_checkpoint = torch.load(args.model, map_location='cpu', weights_only=False)
     new_checkpoint = dict()
-    new_checkpoint['model_name'] = "Apollo"
-    new_checkpoint['model_args'] = {'software_versions': {'torch_version': torch.__version__, 'pytorch_lightning_version': pl.__version__}}
-    new_checkpoint['infos'] = {'sr': cfg.model.sr, 'win': cfg.model.win, 'feature_dim': cfg.model.feature_dim, 'layer': cfg.model.layer}
-    new_checkpoint['state_dict'] = {k.replace("audio_model.", ""): v for k, v in old_checkpoint['state_dict'].items() if "audio_model" in k}
+    new_checkpoint['name'] = "apollo"
+    new_checkpoint['info'] = {
+        'software_versions': {
+            'torch_version': torch.__version__,
+            'pytorch_lightning_version': pl.__version__
+        },
+        'description': args.discription
+    }
+    new_checkpoint['config'] = {
+        'sr': cfg.model.sr,
+        'win': cfg.model.win,
+        'feature_dim': cfg.model.feature_dim,
+        'layer': cfg.model.layer
+    }
+    new_checkpoint['state_dict'] = {
+        k.replace("audio_model.", ""): v for k, v in old_checkpoint['state_dict'].items() if "audio_model" in k
+    }
     torch.save(new_checkpoint, os.path.join(args.output, model_file_name))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", type=str, default="configs/apollo.yaml")
-    parser.add_argument("-m", "--model", type=str, default=None)
-    parser.add_argument("-o", "--output", type=str, default="output")
+    parser.add_argument("-c", "--config", type=str, default="configs/apollo.yaml", help="Path to the config file")
+    parser.add_argument("-m", "--model", type=str, required=True, help="Path to the model checkpoint")
+    parser.add_argument("-o", "--output", type=str, default="output", help="Output folder to store the generated model and config file")
+    parser.add_argument("-d", "--discription", type=str, default="", help="Description to assert into the model file")
     args = parser.parse_args()
 
     assert args.model is not None, "Please provide a model checkpoint"

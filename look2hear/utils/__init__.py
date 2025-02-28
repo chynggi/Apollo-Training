@@ -23,6 +23,7 @@ from .inversible_interface import InversibleInterface
 from .nets_utils import make_pad_mask
 from .pylogger import RankedLogger
 from .separator import wav_chunk_inference
+from .metrics import get_metrics
 
 __all__ = [
     "wav_chunk_inference",
@@ -50,4 +51,5 @@ __all__ = [
     "get_layer",
     "InversibleInterface",
     "make_pad_mask",
+    "get_metrics"
 ]
