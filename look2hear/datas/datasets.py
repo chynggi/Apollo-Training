@@ -1,12 +1,10 @@
-import librosa
-import torch
 import random
 import multiprocessing
-import numpy as np
+import torch
+import torchaudio
 from omegaconf import OmegaConf
-from typing import Tuple
 from torch.utils.data import DataLoader, Dataset
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 from pytorch_lightning import LightningDataModule
 from .preprocess import get_filelist
 
@@ -14,7 +12,7 @@ from .preprocess import get_filelist
 class TrainDataset(Dataset):
     def __init__(
         self,
-        filelists: list[dict],
+        filelists: List[Dict],
         sr: int = 44100,
         segments: int = 10,
         num_steps: int = 1000,
@@ -27,27 +25,25 @@ class TrainDataset(Dataset):
     def __len__(self) -> int:
         return self.num_steps
 
+    def load_audio(self, path) -> torch.Tensor:
+        waveform, sample_rate = torchaudio.load(path)
+        if sample_rate != self.sr:
+            waveform = torchaudio.transforms.Resample(sample_rate, self.sr)(waveform)
+        return waveform
+
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         random_file = random.choice(self.filelists)
+        original = self.load_audio(random_file["original"])
+        codec = self.load_audio(random_file["codec"])
 
-        while True:
-            original, _ = librosa.load(random_file["original"], sr=self.sr, mono=False)
-            codec, _ = librosa.load(random_file["codec"], sr=self.sr, mono=False)
-            min_length = min(original.shape[-1], codec.shape[-1])
-            if min_length > self.segments:
-                break
-
-        start = random.randint(0, min_length - self.segments)
-        ori_wav = original[..., start:start + self.segments]
-        codec_wav = codec[..., start:start + self.segments]
-
-        if len(ori_wav.shape) == 1:
-            ori_wav = np.stack([ori_wav, ori_wav], axis=0)
-        if len(codec_wav.shape) == 1:
-            codec_wav = np.stack([codec_wav, codec_wav], axis=0)
-
-        ori_wav = torch.tensor(ori_wav)
-        codec_wav = torch.tensor(codec_wav)
+        min_length = min(original.shape[-1], codec.shape[-1])
+        if min_length > self.segments:
+            start = random.randint(0, min_length - self.segments)
+            ori_wav = original[..., start:start + self.segments]
+            codec_wav = codec[..., start:start + self.segments]
+        else:
+            ori_wav = original[..., :min_length]
+            codec_wav = codec[..., :min_length]
 
         max_scale = max(ori_wav.abs().max(), codec_wav.abs().max())
         if max_scale > 0:
@@ -59,7 +55,7 @@ class TrainDataset(Dataset):
 class ValidDataset(Dataset):
     def __init__(
         self,
-        filelists: list[dict],
+        filelists: List[Dict],
         sr: int = 44100
     ) -> None:
         self.sr = sr
@@ -68,31 +64,30 @@ class ValidDataset(Dataset):
     def __len__(self) -> int:
         return len(self.filelists)
 
-    def __getitem__(self, idx: int):
-        original, _ = librosa.load(self.filelists[idx]["original"], sr=self.sr, mono=False)
-        codec, _ = librosa.load(self.filelists[idx]["codec"], sr=self.sr, mono=False)
+    def load_audio(self, path) -> torch.Tensor:
+        waveform, sample_rate = torchaudio.load(path)
+        if sample_rate != self.sr:
+            waveform = torchaudio.transforms.Resample(sample_rate, self.sr)(waveform)
+        return waveform
 
-        min_length = min(original.shape[-1], codec.shape[-1])
-        ori_wav = original[..., :min_length]
-        codec_wav = codec[..., :min_length]
-
-        if len(ori_wav.shape) == 1:
-            ori_wav = np.stack([ori_wav, ori_wav], axis=0)
-        if len(codec_wav.shape) == 1:
-            codec_wav = np.stack([codec_wav, codec_wav], axis=0)
-
-        ori_wav = torch.tensor(ori_wav)
-        codec_wav = torch.tensor(codec_wav)
-        return ori_wav, codec_wav
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        original = self.load_audio(self.filelists[idx]["original"])
+        codec = self.load_audio(self.filelists[idx]["codec"])
+        
+        if original.shape[-1] != codec.shape[-1]:
+            min_length = min(original.shape[-1], codec.shape[-1])
+            return original[..., :min_length], codec[..., :min_length]
+        else:
+            return original, codec
 
 
 class DataModule(LightningDataModule):
     def __init__(
         self,
         dataset_type: int,
-        stems: dict,
-        train: dict,
-        valid: dict,
+        stems: Dict,
+        train: Dict,
+        valid: Dict,
         sr: int = 44100,
         segments: int = 10,
         num_steps: int = 1000,
@@ -113,6 +108,7 @@ class DataModule(LightningDataModule):
         self.expdir = expdir
         self.config = OmegaConf.create({
             "dataset_type": dataset_type,
+            "sr": sr,
             "stems": stems,
             "train": train,
             "valid": valid

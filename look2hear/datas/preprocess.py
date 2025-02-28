@@ -1,22 +1,28 @@
 import os
 import librosa
+import soundfile as sf
+import numpy as np
 import multiprocessing
 import json
 from tqdm import tqdm
 
 
-def valid_audio(audio_path):
-    audio, _ = librosa.load(audio_path, mono=False)
+def valid_audio(audio_path, sr):
+    audio, _ = librosa.load(audio_path, mono=False, sr=sr)
     if len(audio.shape) != 1 and audio.shape[0] > 2:
         print(f"Warning: {audio_path} has more than 2 channels. Skipping.")
         return False
+    if len(audio.shape) == 1:
+        audio = np.stack([audio, audio], axis=0)
+        sf.write(audio_path, audio, sr)
+        print(f"Warning: {audio_path} is mono. Converting to stereo.")
     return True
 
 def process_audio(path: dict):
-    original_path, codec_path = path["original"], path["codec"]
+    original_path, codec_path, sr = path["original"], path["codec"], path["target_sr"]
     try:
-        valid_ori = valid_audio(original_path)
-        valid_cod = valid_audio(codec_path)
+        valid_ori = valid_audio(original_path, sr)
+        valid_cod = valid_audio(codec_path, sr)
         if not valid_ori or not valid_cod:
             return False, path
         return True, path
@@ -39,7 +45,7 @@ def process(datas, threads, type="train"):
                     original = os.path.join(path, folder, f"{datas.stems.original}.{datas.train.original_format}")
                     codec = os.path.join(path, folder, f"{datas.stems.codec}.{datas.train.codec_format}")
                     if os.path.exists(original) and os.path.exists(codec):
-                        files.append({"original": original, "codec": codec})
+                        files.append({"original": original, "codec": codec, "target_sr": datas.sr})
                     else:
                         print(f"Warning: Folder {folder} is invalid, please check!")
 
@@ -52,7 +58,7 @@ def process(datas, threads, type="train"):
                     original = os.path.join(original_folder, file)
                     codec = os.path.join(codec_folder, file.replace(f".{datas.train.original_format}", f".{datas.train.codec_format}"))
                     if os.path.exists(codec):
-                        files.append({"original": original, "codec": codec})
+                        files.append({"original": original, "codec": codec, "target_sr": datas.sr})
                     else:
                         print(f"Warning: Could not find file {codec}, please check!")
         print(f"Total files found: {len(files)} for training")
@@ -67,7 +73,7 @@ def process(datas, threads, type="train"):
                 original = os.path.join(path, folder, f"{datas.stems.original}.{datas.valid.original_format}")
                 codec = os.path.join(path, folder, f"{datas.stems.codec}.{datas.valid.codec_format}")
                 if os.path.exists(original) and os.path.exists(codec):
-                    files.append({"original": original, "codec": codec})
+                    files.append({"original": original, "codec": codec, "target_sr": datas.sr})
         print(f"Total files found: {len(files)} for validation")
 
     datas_process = files.copy()
@@ -83,12 +89,12 @@ def process(datas, threads, type="train"):
                 files.remove(out[1])
     return files
 
-def get_filelist(cfg, expdir, threads=multiprocessing.cpu_count(), reprocess=False):
+def get_filelist(datas, expdir, threads=multiprocessing.cpu_count(), reprocess=False):
     os.makedirs(expdir, exist_ok=True)
     if not os.path.exists(os.path.join(expdir, "filelist.json")) or reprocess:
         print("Strat processing filelist")
-        train_datas = process(cfg, threads, type="train")
-        valid_datas = process(cfg, threads, type="valid")
+        train_datas = process(datas, threads, type="train")
+        valid_datas = process(datas, threads, type="valid")
         datas = {"train": train_datas, "valid": valid_datas}
         with open(os.path.join(expdir, "filelist.json"), "w") as f:
             json.dump(datas, f, indent=4)
