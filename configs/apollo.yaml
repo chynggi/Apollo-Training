@@ -4,7 +4,7 @@ exp:
 
 datas:
   _target_: look2hear.datas.DataModule
-  dataset_type: 1 # see README for more details
+  dataset_type: 1 # 1 or 2. see README for more details
   sr: 44100 # sample rate
   segments: 4 # cropped audio in seconds. chunksize = sr * segments
   num_steps: 1000 # number of samples to be used for training in one epoch.
@@ -13,20 +13,18 @@ datas:
   pin_memory: true # pin memory for data loading
 
   stems:
-    original: original # key for the original audio files
-    codec: codec # key for the codec audio files
+    original: original # key for the original audio files, don't change it
+    codec: codec # key for the codec audio files, don't change it
 
   train:
     dir: # dataset where the training audio files are stored 
-    - train_dir_1
-    - train_dir_2
+    - train_dir_1 # list of directories
     original_format: wav # the format of the original audio files
     codec_format: mp3 # the format of the codec audio files
 
   valid:
     dir: # dataset where the validation audio files are stored
-    - valid_dir_1
-    - valid_dir_2
+    - valid_dir_1 # list of directories
     original_format: wav # the format of the original audio files
     codec_format: mp3 # the format of the codec audio files
 
@@ -73,7 +71,7 @@ loss_d:
 
 metrics:
   _target_: look2hear.losses.MultiSrcNegSDR
-  sdr_type: sisdr
+  sdr_type: sisdr # metric for validation, one of [snr, sisdr, sdsdr]
 
 system:
   _target_: look2hear.system.audio_litmodule.AudioLightningModule
@@ -82,7 +80,7 @@ system:
 early_stopping:
   _target_: pytorch_lightning.callbacks.EarlyStopping
   monitor: val_loss # metric to monitor
-  patience: 20 # number of epochs with no improvement after which training will be stopped
+  patience: 50 # number of epochs with no improvement after which training will be stopped
   mode: min
   verbose: true
 
@@ -105,8 +103,8 @@ logger:
 
 trainer:
   _target_: pytorch_lightning.Trainer
-  devices: [0]
-  max_epochs: 1000
+  devices: [0] # number of GPUs to use
+  max_epochs: 1000 # max number of epochs
   sync_batchnorm: true
   default_root_dir: ${exp.dir}/${exp.name}/
   accelerator: cuda

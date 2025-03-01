@@ -1,12 +1,15 @@
 <div align="center">
-  
+
 # Apollo Training
+
+在原始Apollo代码基础上改进了训练集格式以及训练过程<br>
+Improve the training set production process and the training process
 
 </div>
 
 ## 1. 环境配置
 
-经测试，python=3.10可以运行，其他版本未测试。此外，建议手动安装PyTorch。
+经测试，python310可以运行，其他版本未测试。此外，建议手动安装PyTorch。
 
 ```shell
 conda create -n apollo python=3.10 -y
@@ -16,61 +19,108 @@ pip install -r requirements.txt
 
 ## 2. 数据集构建
 
-### 2.1 手动构建压缩后的音频
+### 2.1 训练集格式
 
-按照以下结构构建训练集文件夹。codec代表的是压缩后的音频，original代表的是原始音频。你需要确保original文件夹中的音频文件和codec文件夹中的音频文件，除后缀名以外的其余名称是一一对应的。并且需要确保配置文件夹中 `datas.codec.enable` 设置成 `False` 以禁用自动构建压缩音频。
+支持采用多个训练集进行训练，但所有训练集的格式（type1或者type2）必须一致。训练集文件夹结构如下：
 
+- **Type 1 (MUSDB)**
+
+  每个音频放在单独文件夹内。每个文件夹包含该歌曲的原始音频（original.wav）以及压缩后的音频（codec.wav），格式与MUSDBHQ18数据集相同。原始音频和压缩后的音频格式可以不一致，例如（original.wav，codec.mp3）。但不同文件夹中所有的原始音频和所有的压缩后的音频格式必须一致（例如所有的原始音频全部是wav，全部的压缩后的音频全部是mp3）。音频格式需要在配置文件中指定。
+  ```
+  train
+    ├─ song_1
+    │    codec.mp3
+    │    original.wav
+    ├─ song_2
+    │    codec.mp3
+    │    original.wav
+    └─ song_3
+        ...
+  ```
+
+- **Type 2 (stems)**
+
+  所有的原始音频放在同一个文件夹内（original文件夹），所有的压缩后的音频放在另一个文件夹内（codec文件夹）。同一个文件夹中的所有音频格式需要一致（例如original文件夹中所有音频格式为wav，codec文件夹中所有音频格式为mp3）。音频格式需要在配置文件中指定。此外，original文件夹中的音频文件和codec文件夹中的音频文件，除后缀名以外的其余名称一一对应。
+  ```
+  train
+    ├─codec
+    │    my_song.wav
+    │    test_song.wav
+    │    vocals.wav
+    │    114514.wav
+    │    ...
+    └─original
+        my_song.mp3
+        test_song.mp3
+        vocals.mp3
+        114514.mp3
+        ...
+  ```
+
+### 2.2 验证集格式
+
+支持多个验证集进行验证，无论训练集选择何种方式，都需要按照**Type 1 (MUSDB)**的结构构建验证集文件夹。
+
+每个音频放在单独文件夹内。每个文件夹包含该歌曲的原始音频（original.wav）以及压缩后的音频（codec.wav），格式与MUSDBHQ18数据集相同。原始音频和压缩后的音频格式可以不一致，例如（original.wav，codec.mp3）。但不同文件夹中所有的原始音频和所有的压缩后的音频格式必须一致（例如所有的原始音频全部是wav，全部的压缩后的音频全部是mp3）。音频格式需要在配置文件中指定。
 ```
 train
-  ├─codec
-  │    my_song.wav
-  │    test_song.wav
-  │    vocals.wav
-  │    114514.wav
-  │    ...
-  └─original
-       my_song.wav
-       test_song.wav
-       vocals.wav
-       114514.wav
-       ...
-```
-
-### 2.2 自动构建压缩后的音频
-
-按照以下结构构建训练集文件夹，无需codec文件夹。并且需要确保配置文件夹中 `datas.codec.enable` 设置成 `True` 以启用自动构建压缩音频。
-
-```
-train
-  └─original
-       my_song.wav
-       test_song.wav
-       vocals.wav
-       114514.wav
-       ...
-```
-
-如果在自动构建的过程中遇到`RuntimeError: torchaudio.functional.functional.apply_codec requires sox extension, but TorchAudio is not compiled with it. Please build TorchAudio with libsox support.`，则表明自动构建不可用。请自行解决或使用上面的手动构建压缩音频的方法。
-
-### 2.3 验证集构建
-
-无论上面选择何种方式，都需要按照以下结构构建验证集文件夹。并且需要保证同一文件夹中的两段音频形状（`audio.shape`）保持一致。文件夹名字可以自定义，音频文件名字需要一致。
-
-```
-valid
-  ├─folder_1
-  │    codec.wav
+  ├─ song_1
+  │    codec.mp3
   │    original.wav
-  │    ...
-  └─folder_2
-       codec.wav
-       original.wav
+  ├─ song_2
+  │    codec.mp3
+  │    original.wav
+  └─ song_3
        ...
 ```
+
+### 2.3 自动构建压缩音频
+
+你可以手动构建压缩后的音频，然后根据上面的“数据集格式”，构建数据集文件夹。也可以使用提供的脚本自动构建压缩音频，脚本位于`scripts/generate_datasets.py`。使用该脚本时，请确保已经安装了FFmpeg。具体使用方法可以通过 `python scripts/generate_datasets.py -h` 查看。
+
+**参数说明：**
+
+- `-i`, `--input_folder`：输入文件夹，包含原始音频。
+- `-o`, `--output_folder`：输出文件夹，输出压缩后的音频。
+- `-t`, `--dataset_type`：数据集类型，1表示MUSDB格式，2表示stems格式。默认为1。
+- `-gt`, `--generate_train`：构建训练集。
+- `-gv`, `--generate_valid`：构建验证集。
+- `-th`, `--threads`：处理线程数量，默认为CPU核心数。
+- `--save_logs`：保存处理过程的详细信息至输出文件夹。
+- `--bitrates`：构建验证集时，指定比特率，默认为所有随机比特率。["64k", "96k", "128k", "192k", "256k", "320k"]
+- `--enable_quality`：启用质量参数。
+  - `--quality_possibility`：启用质量参数的概率，默认为1。
+  - `--quality_min`：随机质量参数的最小值，最小为0，默认为0。**注意，此处的quality数值越小，音频质量越高。**
+  - `--quality_max`：随机质量参数的最大值，最大为9，默认为9。**注意，此处的quality数值越大，音频质量越低。**
+- `--enable_lowpass`：启用低通滤波。
+  - `--lowpass_possibility`：启用低通滤波的概率，默认为1。
+  - `--lowpass_min_freq`：随机低通滤波的最小频率，默认为12000。
+  - `--lowpass_max_freq`：随机低通滤波的最大频率，默认为16000。
+
+**一些示例：**
+
+- 输入文件夹input，输出文件夹output，使用dataset type1，构建训练集。默认采用所有随机比特率，不启用其余参数。
+  ```bash
+  python scripts/generate_datasets.py -i input -o output --dataset_type 1 --generate_train
+  ```
+
+- 输入文件夹input，输出文件夹output，构建验证集。采用随机比特率["192k", "256k", "320k"]，不启用其余参数。
+  ```bash
+  python scripts/generate_datasets.py -i input -o output --generate_valid --bitrate 192k 256k 320k
+
+- 输入文件夹input，输出文件夹output，使用dataset type2，构建训练集。启用质量参数，启用概率为0.5，质量范围为0-9。启用低通，启用概率为0.5，低通频率范围为12k-16k。
+  ```bash
+  python scripts/generate_datasets.py -i input -o output --dataset_type 2 --generate_train --enable_quality --quality_possibility 0.5 --quality_min 0 --quality_max 9 --enable_lowpass --lowpass_possibility 0.5 --lowpass_min_freq 12000 --lowpass_max_freq 16000
+  ```
+
+- 输入文件夹input，输出文件夹output，构建验证集。限制处理线程数量为2，默认采用所有随机比特率，不启用其余参数。保存处理过程的详细信息。
+  ```bash
+  python scripts/generate_datasets.py -i input -o output --generate_valid --threads 2 --save_logs
+  ```
 
 ### 2.4 修改配置文件
 
-配置文件位于`configs/apollo.yaml`，下面仅介绍一些关键参数
+配置文件模板位于`configs/apollo.yaml`，下面仅介绍一些关键参数。其余参数请前往配置文件根据注释介绍自行修改。
 
 ```yaml
 exp: 
@@ -80,34 +130,57 @@ exp:
 
 datas:
   _target_: look2hear.datas.DataModule
-  original_dir: train/original # 训练集，存放原始音频的文件夹
-  codec_dir: train/codec # 训练集，存放压缩音频的文件夹
-  codec_format: mp3 # 训练集，存放压缩音频的文件夹中的音频格式
-  valid_dir: valid # 验证集路径
-  valid_original: original.wav # 验证集中原始音频的文件名
-  valid_codec: codec.mp3 # 验证集中压缩音频的文件名
-  codec:
-    enable: false # 自动生成压缩音频，如果启用，将自动生成压缩音频。上面的codec_dir和codec_format将被忽略
-    options: # 压缩参数设置
-      bitrate: random # 随机或固定，如果固定，则采用设定的值（整型），如果随机，则将从[24000、32000、48000、64000、96000、128000]中随机选择比特率
-      compression: random # 随机或固定，如果固定，则采用设定的值（整型），如果随机，将按比特率计算
+  dataset_type: 1 # 数据集类型，1为MUSDB格式，2为stem格式，参考上面的数据集制作部分
   sr: 44100 # 采样率
-  segments: 3 # 训练时随机裁剪的音频长度（单位：秒）。该值应小于训练集中最短音频时长
+  segments: 4 # 训练时随机裁剪的音频长度（单位：秒）
   num_steps: 1000 # 一个epoch中的迭代次数，也可理解为一个epoch中随机抽取的音频数量
   batch_size: 1
   num_workers: 0
   pin_memory: true
 
+  stems:
+    original: original # 不要修改
+    codec: codec # 不要修改
+
+  train:
+    dir: # 训练集文件夹路径，支持输入多个文件夹
+    - train_dir_1
+    - train_dir_2
+    - train_dir_3
+    original_format: wav # 训练集文件夹中原始音频的格式
+    codec_format: mp3 # 训练集文件夹中压缩音频的格式
+
+  valid:
+    dir: # 验证集文件夹路径，支持输入多个文件夹
+    - valid_dir_1
+    - valid_dir_2
+    - valid_dir_3
+    original_format: wav # 验证集文件夹中原始音频的格式
+    codec_format: mp3 # 验证集文件夹中压缩音频的格式
+
 model:
   _target_: look2hear.models.apollo.Apollo
-  sr: 44100 # sample rate
-  win: 20 # ms
-  feature_dim: 256 # feature dimension
-  layer: 6 # number of layers
+  sr: 44100 # 采样率
+  win: 20 # 窗口长度
+  feature_dim: 256 # 特征维度
+  layer: 6 # 网络层数
+  # feature_dim和layer决定网络大小，例如256x6
+
+metrics:
+  _target_: look2hear.losses.MultiSrcNegSDR
+  sdr_type: sisdr # 验证时使用的metric，可选[snr, sisdr, sdsdr]
+
+# 如果你不希望early_stopping，可以注释掉或者删除掉下面的内容
+early_stopping:
+  _target_: pytorch_lightning.callbacks.EarlyStopping
+  monitor: val_loss # 监控的指标
+  patience: 50 # 连续多少个epoch没有改进，训练就会提前结束
+  mode: min
+  verbose: true
 
 trainer:
   _target_: pytorch_lightning.Trainer
-  devices: [0] # GPU ID
+  devices: [0] # 训练使用的GPU ID
   max_epochs: 1000 # 最大训练轮数
   sync_batchnorm: true
   default_root_dir: ${exp.dir}/${exp.name}/
@@ -115,45 +188,80 @@ trainer:
   limit_train_batches: 1.0
   fast_dev_run: false
   precision: bf16 # 可选项：[16, bf16, 32, 64]，建议采用bf16
+  enable_model_summary: true
 ```
 
 ## 3. 训练
 
-使用下面的代码开始训练。若需要wandb在线可视化，需设置环境变量`WANDB_API_KEY`为你的api key。配置文件中默认启用了early stopping机制，并且设置了patience。这意味着如果验证集的损失在连续patience个epoch内没有改进，训练就会提前结束。如果不希望提前结束而是训练到max epoch，你可以删除配置文件中的early_stopping相关的配置。
+训练代码已在Windows及Linux系统下单卡/多卡测试通过。使用下面的代码开始训练。若需要wandb在线可视化，请先执行`wandb login`，并根据指示，完成登陆。
+
+配置文件中默认启用了early stopping机制，并且设置了patience。这意味着如果验证集的损失在连续patience个epoch内没有改进，训练就会提前结束。如果不希望提前结束而是训练到最大epoch，你可以删除配置文件中的early_stopping相关的配置。
+
+- 从头开始训练apollo模型
+  ```bash
+  python train.py -c CONFIG_FILE
+  # 例如：python train.py -c ./configs/apollo.yaml
+  ```
+
+- 继续训练apollo模型
+  ```bash
+  python train.py -c CONFIG_FILE -m MODEL_FILE
+  # 例如：python train.py -c ./configs/apollo.yaml -m ./exps/apollo/last.ckpt
+  ```
+
+## 4. 推理
+
+更推荐使用[ZFTurbo](https://github.com/ZFTurbo)的[Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training)进行模型推理和验证。
+
+也可以使用本仓库中的`inference.py`进行推理。代码修改自[Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training)，并进行了简化。具体使用方法可以通过 `python inference.py -h` 查看。
+
+- `-m`, `--model`: 模型路径
+- `-c`, `--config`: 配置文件路径
+- `-i`, `--input`: 输入音频路径或者输入文件夹路径
+- `-o`, `--output`: 输出结果文件夹路径
+- `--segments`: 切片长度，单位为秒，默认为10秒
+- `--overlap`: 切片重叠长度，默认为4
+- `--batch_size`: 批量大小，默认为1
+- `--save_addition`: 同时保存addition音频，addition=input-output
 
 ```bash
-python train.py -c [配置文件路径]
-# 例如：python train.py -c ./configs/apollo.yaml
+python inference.py -m MODEL_FILE -c CONFIG_FILE -i INPUT -o OUTPUT_DIR [OPTIONS]
+# 例如：python inference.py -m model.ckpt -c ./configs/apollo.yaml -i input -o output
 ```
 
-如果需要继续训练，添加 `-m [继续训练的模型路径]`。
+## 5. 验证
+
+使用本仓库中的`validate.py`进行验证。需要输入验证集文件夹路径。验证集制作方法参考上面的2.2。
+
+脚本可以根据验证集，计算模型的['sdr', 'si_sdr', 'l1_freq', 'log_wmse', 'aura_stft', 'aura_mrstft', 'bleedless', 'fullness']数值。具体使用方法可以通过 `python validate.py -h` 查看。
+
+- `-m`, `--model`: 模型路径
+- `-c`, `--config`: 配置文件路径
+- `-i`, `--input`: 输入验证集文件夹路径
+- `--metrics`: 需要计算的指标，默认为['sdr']，可选值：['sdr', 'si_sdr', 'l1_freq', 'log_wmse', 'aura_stft', 'aura_mrstft', 'bleedless', 'fullness']
+- `--segments`: 切片长度，单位为秒，默认为10秒
+- `--overlap`: 切片重叠长度，默认为4
+- `--batch_size`: 批量大小，默认为1
+- `--save_results`: 同时保存验证结果和验证日志文件
+- `--output`: 验证结果的保存文件夹路径
 
 ```bash
-python train.py -c [配置文件路径] -m [继续训练的模型路径]
-# 例如：python train.py -c ./configs/apollo.yaml -m ./exps/apollo/epoch=0001-step=0000000.ckpt
+python validate.py -m MODEL_FILE -c CONFIG_FILE -i INPUT_DIR --metrics METRICS1 METRICS2 ... [OPTIONS]
+# 例如：python validate.py -m model.ckpt -c ./configs/apollo.yaml -i VALID --metrics sdr si_sdr bleedless fullness
 ```
 
-关于更详细的多卡分布式训练的环境变量设置，前往 `train.py` 的 `if __name__ == "__main__":`。
+## 5. 导出[MSST](https://github.com/ZFTurbo/Music-Source-Separation-Training)模型和配置文件
 
-## 4. 推理/验证
+由此仓库训练出来的Apollo模型无法直接在MSST中使用，需要进行一些转换。使用 `scripts/generate_msst_model.py`。该脚本可以删除模型中的无用参数（模型大小大约缩减至一半），并且转换成[MSST](https://github.com/ZFTurbo/Music-Source-Separation-Training)支持的模型。具体使用方法可以通过 `python scripts/generate_msst_model.py -h` 查看。
 
-> [!NOTE]
-> 更推荐使用[ZFTurbo](https://github.com/ZFTurbo)的[Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training)进行模型推理和验证。
-
-apollo官方也提供了简单的推理脚本 `inference.py`。使用方法:
-
-```bash
-python inference.py -m [模型路径] -i [输入音频路径] -o [输出音频路径]
-# 例如：python inference.py -m ./exps/apollo/epoch=0001-step=0000000.ckpt -i ./test.wav -o ./test_out.wav
-```
-
-## 5. 导出[msst](https://github.com/ZFTurbo/Music-Source-Separation-Training)模型和配置文件
-
-由此仓库训练出来的apollo模型无法直接在msst中使用，需要进行一些转换。使用 `generate_msst.py`。该脚本可以删除模型中的无用参数，并且转换成[msst](https://github.com/ZFTurbo/Music-Source-Separation-Training)支持的模型。运行下述命令后，会在输出文件夹输出配置文件和模型文件。
+- `-c`, `--config`: Apollo配置文件路径
+- `-m`, `--model`: Apollo模型路径
+- `-o`, `--output`: 输出文件夹路径，默认为output
+- `-d`, `--discription`: 嵌入到模型文件中的描述信息，默认为空
 
 ```bash
-python scripts/generate_msst_model.py -c [apollo配置文件路径] -m [训练出来的apollo模型路径] -o [输出文件夹路径，默认为output]
-# 例如：python scripts/generate_msst_model.py -c ./configs/apollo.yaml -m ./exps/apollo/epoch=0001-step=0000000.ckpt
+python scripts/generate_msst_model.py -c CONFIG_FILE -m MODEL_FILE -o OUTPUT_DIR [OPTIONS]
+# 例如：python scripts/generate_msst_model.py -c ./configs/apollo.yaml -m ./exps/apollo/last.ckpt
 ```
 
 ----
@@ -172,71 +280,11 @@ python scripts/generate_msst_model.py -c [apollo配置文件路径] -m [训练�
 
 Audio restoration has become increasingly significant in modern society, not only due to the demand for high-quality auditory experiences enabled by advanced playback devices, but also because the growing capabilities of generative audio models necessitate high-fidelity audio. Typically, audio restoration is defined as a task of predicting undistorted audio from damaged input, often trained using a GAN framework to balance perception and distortion. Since audio degradation is primarily concentrated in mid- and high-frequency ranges, especially due to codecs, a key challenge lies in designing a generator capable of preserving low-frequency information while accurately reconstructing high-quality mid- and high-frequency content. Inspired by recent advancements in high-sample-rate music separation, speech enhancement, and audio codec models, we propose Apollo, a generative model designed for high-sample-rate audio restoration. Apollo employs an explicit **frequency band split module** to model the relationships between different frequency bands, allowing for **more coherent and higher-quality** restored audio. Evaluated on the MUSDB18-HQ and MoisesDB datasets, Apollo consistently outperforms existing SR-GAN models across various bit rates and music genres, particularly excelling in complex scenarios involving mixtures of multiple instruments and vocals. Apollo significantly improves music restoration quality while maintaining computational efficiency.
 
-## 🔥 News
-
-- [2024.09.10] Apollo is now available on [ArXiv](#) and [Demo](https://cslikai.cn/Apollo/).
-- [2024.09.106] Apollo checkpoints and pre-trained models are available for download.
-
-## ⚡️ Installation
-
-clone the repository
-
-```bash
-git clone https://github.com/JusperLee/Apollo.git && cd Apollo
-conda create --name look2hear --file look2hear.yml
-conda activate look2hear
-```
-
-## 🖥️ Usage
-
-### 🗂️ Datasets
-
-Apollo is trained on the MUSDB18-HQ and MoisesDB datasets. To download the datasets, run the following commands:
-
-```bash
-wget https://zenodo.org/records/3338373/files/musdb18hq.zip?download=1
-wget https://ds-website-downloads.55c2710389d9da776875002a7d018e59.r2.cloudflarestorage.com/moisesdb.zip
-```
-During data preprocessing, we drew inspiration from music separation techniques and implemented the following steps:
-
-1. **Source Activity Detection (SAD):**  
-   We used a Source Activity Detector (SAD) to remove silent regions from the audio tracks, retaining only the significant portions for training.
-
-2. **Data Augmentation:**  
-   We performed real-time data augmentation by mixing tracks from different songs. For each mix, we randomly selected between 1 and 8 stems from the 11 available tracks, extracting 3-second clips from each selected stem. These clips were scaled in energy by a random factor within the range of [-10, 10] dB relative to their original levels. The selected clips were then summed together to create simulated mixed music.
-
-3. **Simulating Dynamic Bitrate Compression:**  
-   We simulated various bitrate scenarios by applying MP3 codecs with bitrates of [24000, 32000, 48000, 64000, 96000, 128000]. 
-
-4. **Rescaling:**  
-   To ensure consistency across all samples, we rescaled both the target and the encoded audio based on their maximum absolute values.
-
-5. **Saving as HDF5:**  
-   After preprocessing, all data (including the source stems, mixed tracks, and compressed audio) was saved in HDF5 format, making it easy to load for training and evaluation purposes.
-
-### 🚀 Training
-To train the Apollo model, run the following command:
-
-```bash
-python train.py --conf_dir=configs/apollo.yml
-```
-
-### 🎨 Evaluation
-To evaluate the Apollo model, run the following command:
-
-```bash
-python inference.py --in_wav=assets/input.wav --out_wav=assets/output.wav
-```
-
 ## 📊 Results
 
 *Here, you can include a brief overview of the performance metrics or results that Apollo achieves using different bitrates*
 
-![](./asserts/bitrates.png)
-
-
 *Different methods' SDR/SI-SNR/VISQOL scores for various types of music, as well as the number of model parameters and GPU inference time. For the GPU inference time test, a music signal with a sampling rate of 44.1 kHz and a length of 1 second was used.*
-![](./asserts/types.png)
 
 ## License
 

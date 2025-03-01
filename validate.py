@@ -96,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", type=str, default="configs/apollo.yaml", help="Path to the config file")
     parser.add_argument("-m", "--model", type=str, default=None, help="Path to the checkpoint model for validation")
     parser.add_argument("-i", "--input", type=str, required=True, help="Path to the input audio file")
-    parser.add_argument("--metrics", nargs='+', type=str, default=['sdr', 'si_sdr', 'l1_freq', 'log_wmse', 'aura_stft', 'aura_mrstft', 'bleedless', 'fullness'], choices=['sdr', 'si_sdr', 'l1_freq', 'log_wmse', 'aura_stft', 'aura_mrstft', 'bleedless', 'fullness'], help='List of metrics to use.')
+    parser.add_argument("--metrics", nargs='+', type=str, default=['sdr'], choices=['sdr', 'si_sdr', 'l1_freq', 'log_wmse', 'aura_stft', 'aura_mrstft', 'bleedless', 'fullness'], help='List of metrics to use.')
     parser.add_argument("--segments", type=float, default=10, help="Segment size in seconds")
     parser.add_argument("--overlap", type=int, default=4, help="Number of overlapping chunks")
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size for inference")
