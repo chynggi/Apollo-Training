@@ -63,7 +63,7 @@ pip install -r requirements.txt
 
 每个音频放在单独文件夹内。每个文件夹包含该歌曲的原始音频（original.wav）以及压缩后的音频（codec.wav），格式与MUSDBHQ18数据集相同。原始音频和压缩后的音频格式可以不一致，例如（original.wav，codec.mp3）。但不同文件夹中所有的原始音频和所有的压缩后的音频格式必须一致（例如所有的原始音频全部是wav，全部的压缩后的音频全部是mp3）。音频格式需要在配置文件中指定。
 ```
-train
+valid
   ├─ song_1
   │    codec.mp3
   │    original.wav
