@@ -75,10 +75,10 @@ class ApolloSeparator:
 
         path_restored = os.path.join(output_path, f"{os.path.basename(audio_path).split('.')[0]}_restored.wav")
         path_addition = os.path.join(output_path, f"{os.path.basename(audio_path).split('.')[0]}_addition.wav")
-        sf.write(path_restored, results["restored"].T, sr)
+        sf.write(path_restored, results["restored"].T, sr, subtype='FLOAT')
         if save_addition:
             other = mix_orig - results["restored"]
-            sf.write(path_addition, other.T, sr)
+            sf.write(path_addition, other.T, sr, subtype='FLOAT')
 
     def demix_track(self, mix) -> dict[str, np.ndarray]:
         C = self.chunk_size
